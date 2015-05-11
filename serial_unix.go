@@ -13,6 +13,7 @@ import "regexp"
 import "strings"
 import "syscall"
 import "unsafe"
+import "math"
 
 // Opaque type that implements SerialPort interface for linux
 type SerialPort struct {
@@ -59,12 +60,19 @@ func (port *SerialPort) SetMode(mode *Mode) error {
 	if err := setTermSettingsStopBits(mode.StopBits, settings); err != nil {
 		return err
 	}
+	if err := setTermSettingsReadTimeout(mode.ReadTimeout, settings); err != nil {
+		return err
+	}
 	return port.setTermSettings(settings)
 }
 
 // Open the serial port using the specified modes
 func OpenPort(portName string, mode *Mode) (*SerialPort, error) {
-	h, err := syscall.Open(portName, syscall.O_RDWR|syscall.O_NOCTTY|syscall.O_NDELAY, 0)
+
+	openMode := syscall.O_RDWR|syscall.O_NOCTTY|syscall.O_NONBLOCK
+
+	h, err := syscall.Open(portName, openMode, 0666)
+
 	if err != nil {
 		switch err {
 		case syscall.EBUSY:
@@ -211,6 +219,25 @@ func setTermSettingsStopBits(bits StopBits, settings *syscall.Termios) error {
 	return nil
 }
 
+func setTermSettingsReadTimeout(timeout int, settings *syscall.Termios) error {
+	timeoutTenths := (timeout + 50)/100 //round
+	if timeout>0 && timeoutTenths ==0 {
+		timeoutTenths = 1
+	}
+
+	if timeoutTenths>math.MaxUint8 || timeoutTenths<0 {
+		return &SerialPortError{code: ERROR_OTHER}
+	}
+
+	if timeoutTenths == 0 {
+		settings.Cc[syscall.VMIN] = 1
+	} else {
+		settings.Cc[syscall.VMIN] = 0
+	}
+	settings.Cc[syscall.VTIME] = uint8(timeoutTenths)
+	return nil
+}
+
 func setRawMode(settings *syscall.Termios) {
 	// Set local mode
 	settings.Cflag |= termiosMask(syscall.CREAD | syscall.CLOCAL)
@@ -222,10 +249,6 @@ func setRawMode(settings *syscall.Termios) {
 		syscall.IGNPAR | syscall.PARMRK | syscall.ISTRIP | syscall.IGNBRK | syscall.BRKINT | syscall.INLCR |
 		syscall.IGNCR | syscall.ICRNL | tc_IUCLC)
 	settings.Oflag &= ^termiosMask(syscall.OPOST)
-
-	// Block reads until at least one char is available (no timeout)
-	settings.Cc[syscall.VMIN] = 1
-	settings.Cc[syscall.VTIME] = 0
 }
 
 // native syscall wrapper functions

@@ -252,11 +252,15 @@ func OpenPort(portName string, mode *Mode) (*SerialPort, error) {
 		return nil, &SerialPortError{code: ERROR_INVALID_SERIAL_PORT}
 	}
 
-	// Set timeouts to 1 second
+	if mode.ReadTimeout < 0 {
+		return nil, &SerialPortError{code: ERROR_OTHER}
+	}
+
+	//See https://msdn.microsoft.com/en-us/library/windows/desktop/aa363190(v=vs.85).aspx
 	timeouts := &COMMTIMEOUTS{
-		ReadIntervalTimeout:         0xFFFFFFFF,
-		ReadTotalTimeoutMultiplier:  0xFFFFFFFF,
-		ReadTotalTimeoutConstant:    1000, // 1 sec
+		ReadIntervalTimeout:         0,
+		ReadTotalTimeoutMultiplier:  0,
+		ReadTotalTimeoutConstant:    mode.ReadTimeout,
 		WriteTotalTimeoutConstant:   0,
 		WriteTotalTimeoutMultiplier: 0,
 	}

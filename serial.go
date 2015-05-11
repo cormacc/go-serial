@@ -12,6 +12,7 @@ type Mode struct {
 	DataBits int      // Size of the character (must be 5, 6, 7 or 8)
 	Parity   Parity   // Parity (see Parity type for more info)
 	StopBits StopBits // Stop bits (see StopBits type for more info)
+	ReadTimeout int   // Read timeout in 100ths of a second (0 for none/blocking)
 }
 
 type Parity int
@@ -46,6 +47,7 @@ const (
 	ERROR_INVALID_PORT_SPEED
 	ERROR_INVALID_PORT_DATA_BITS
 	ERROR_ENUMERATING_PORTS
+	ERROR_INVALID_READ_TIMEOUT
 	ERROR_OTHER
 )
 
@@ -65,6 +67,8 @@ func (e SerialPortError) Error() string {
 		return "Invalid port data bits"
 	case ERROR_ENUMERATING_PORTS:
 		return "Could not enumerate serial ports"
+	case ERROR_INVALID_READ_TIMEOUT:
+		return "Invalid value specified for read timeout"
 	}
 	return e.err
 }
