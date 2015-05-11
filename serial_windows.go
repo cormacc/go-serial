@@ -247,24 +247,13 @@ func OpenPort(portName string, mode *Mode) (*SerialPort, error) {
 	params.XoffLim = 512
 	params.XonChar = 17  // DC1
 	params.XoffChar = 19 // C3
+
 	if SetCommState(port.handle, params) != nil {
 		port.Close()
 		return nil, &SerialPortError{code: ERROR_INVALID_SERIAL_PORT}
 	}
 
-	if mode.ReadTimeout < 0 {
-		return nil, &SerialPortError{code: ERROR_OTHER}
-	}
-
-	//See https://msdn.microsoft.com/en-us/library/windows/desktop/aa363190(v=vs.85).aspx
-	timeouts := &COMMTIMEOUTS{
-		ReadIntervalTimeout:         0,
-		ReadTotalTimeoutMultiplier:  0,
-		ReadTotalTimeoutConstant:    mode.ReadTimeout,
-		WriteTotalTimeoutConstant:   0,
-		WriteTotalTimeoutMultiplier: 0,
-	}
-	if SetCommTimeouts(port.handle, timeouts) != nil {
+	if port.SetReadTimeout(mode.ReadTimeout) != nil {
 		port.Close()
 		return nil, &SerialPortError{code: ERROR_INVALID_SERIAL_PORT}
 	}
@@ -272,4 +261,20 @@ func OpenPort(portName string, mode *Mode) (*SerialPort, error) {
 	return port, nil
 }
 
+func (port *SerialPort) SetReadTimeout(timeoutMs int) error {
+	if timeoutMs < 0 {
+		return &SerialPortError{code: ERROR_INVALID_READ_TIMEOUT}
+	}
+
+	//See https://msdn.microsoft.com/en-us/library/windows/desktop/aa363190(v=vs.85).aspx
+	timeouts := &COMMTIMEOUTS{
+		ReadIntervalTimeout:         0,
+		ReadTotalTimeoutMultiplier:  0,
+		ReadTotalTimeoutConstant:    uint32(timeoutMs),
+		WriteTotalTimeoutConstant:   0,
+		WriteTotalTimeoutMultiplier: 0,
+	}
+
+	return SetCommTimeouts(port.handle, timeouts)
+}
 // vi:ts=2
